@@ -1,5 +1,7 @@
+import json
 import os
 import subprocess
+import csv
 from pathlib import Path
 from github_search import search_github_repositories
 
@@ -37,8 +39,46 @@ def run_gitleaks_scan(local_dir, output_dir, repo_owner, repo_name, config_path)
             "--report-path", str(output_file)
         ])
         print(f"Scan completed for {local_dir}, results saved to {output_file}")
+        return output_file
     except subprocess.CalledProcessError as e:
         print(f"Error running Gitleaks on {local_dir}: {e}")
+        return None
+
+def filter_scan_results(scan_file, repo_url):
+    """
+    Filter Gitleaks scan results and return significant findings.
+
+    :param scan_file: Path to the Gitleaks scan result file.
+    :param repo_url: URL of the GitHub repository.
+    :return: List of filtered findings with repository link.
+    """
+    filtered_results = []
+    try:
+        raw_results = json.load(open(scan_file))
+        for item in raw_results:
+            if "test" in item['File'].lower() or "example" in item['File'].lower():
+                continue
+            permlink = f"{repo_url}/blob/{item['Commit']}/{item['File']}#L{item['StartLine']}C{item['StartColumn']}-L{item['EndLine']}C{item['EndColumn']}"
+            filtered_results.append({"finding": item['RuleID'], "repo_url": permlink})
+    except FileNotFoundError:
+        print(f"Scan file {scan_file} not found.")
+
+    return filtered_results
+
+def save_filtered_results(filtered_results, output_csv):
+    """
+    Save filtered results to a CSV file.
+
+    :param filtered_results: List of filtered findings.
+    :param output_csv: Path to the output CSV file.
+    """
+    file_exists = os.path.isfile(output_csv)
+
+    with open(output_csv, mode="a", encoding="utf-8", newline="") as file:
+        writer = csv.DictWriter(file, fieldnames=["finding", "repo_url"])
+        if not file_exists:
+            writer.writeheader()
+        writer.writerows(filtered_results)
 
 if __name__ == "__main__":
     # User input
@@ -52,6 +92,8 @@ if __name__ == "__main__":
     scan_results_dir = Path("./scan_results")
     scan_results_dir.mkdir(exist_ok=True)
 
+    filtered_results_csv = "filtered_results.csv"
+
     # Call the previously written search function
     repositories = search_github_repositories(search_query, token=token)
 
@@ -62,6 +104,7 @@ if __name__ == "__main__":
             repo_name = repo["name"]
             repo_owner = repo["owner"]["login"]
             repo_url = repo["clone_url"]
+            github_url = f"https://github.com/{repo_owner}/{repo_name}"
             local_repo_dir = base_dir / repo_owner / repo_name
 
             print(f"Processing repository: {repo_name} by {repo_owner}")
@@ -70,6 +113,13 @@ if __name__ == "__main__":
             clone_repository(repo_url, str(local_repo_dir))
 
             # Run Gitleaks scan
-            run_gitleaks_scan(str(local_repo_dir), scan_results_dir, repo_owner, repo_name, config_path)
+            scan_file = run_gitleaks_scan(str(local_repo_dir), scan_results_dir, repo_owner, repo_name, config_path)
+
+            if scan_file:
+                # Filter scan results
+                filtered = filter_scan_results(scan_file, github_url)
+
+                # Save filtered results to CSV
+                save_filtered_results(filtered, filtered_results_csv)
 
         print("All repositories processed.")
