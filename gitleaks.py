@@ -16,29 +16,36 @@ def clone_repository(repo_url, local_dir):
     except subprocess.CalledProcessError as e:
         print(f"Error cloning repository {repo_url}: {e}")
 
-def run_gitleaks_scan(local_dir, output_dir, repo_owner, repo_name):
+def run_gitleaks_scan(local_dir, output_dir, repo_owner, repo_name, config_path):
     """
-    Run Gitleaks scan on a local repository.
+    Run Gitleaks scan on a local repository with a specified configuration file.
 
     :param local_dir: The local directory of the cloned repository.
     :param output_dir: The base directory to save Gitleaks scan results.
     :param repo_owner: The owner of the repository.
     :param repo_name: The name of the repository.
+    :param config_path: The path to the Gitleaks configuration file.
     """
     output_path = Path(output_dir) / repo_owner / repo_name
     output_path.mkdir(parents=True, exist_ok=True)
     output_file = output_path / "gitleaks_report.json"
 
     try:
-        subprocess.run(["gitleaks", "detect", "--source", local_dir, "--report", str(output_file)], check=True)
+        subprocess.run([
+            "gitleaks", "detect", "--source", local_dir,
+            "--config", config_path,
+            "--report-path", str(output_file)
+        ])
         print(f"Scan completed for {local_dir}, results saved to {output_file}")
     except subprocess.CalledProcessError as e:
         print(f"Error running Gitleaks on {local_dir}: {e}")
 
 if __name__ == "__main__":
     # User input
-    search_query = "contracts"
+    search_query = "okx"
     token = input("Enter your GitHub token (or press Enter to skip): ").strip()
+    config_path = "./gitleaks.toml"
+
     base_dir = Path("./cloned_repositories")
     base_dir.mkdir(exist_ok=True)
 
@@ -63,6 +70,6 @@ if __name__ == "__main__":
             clone_repository(repo_url, str(local_repo_dir))
 
             # Run Gitleaks scan
-            run_gitleaks_scan(str(local_repo_dir), scan_results_dir, repo_owner, repo_name)
+            run_gitleaks_scan(str(local_repo_dir), scan_results_dir, repo_owner, repo_name, config_path)
 
         print("All repositories processed.")
