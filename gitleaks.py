@@ -60,6 +60,7 @@ def filter_scan_results(scan_file, repo_url):
                 continue
             permlink = f"{repo_url}/blob/{item['Commit']}/{item['File']}#L{item['StartLine']}C{item['StartColumn']}-L{item['EndLine']}C{item['EndColumn']}"
             filtered_results.append({"finding": item['RuleID'], "repo_url": permlink})
+            print(f"Finding: {item['RuleID']}, Link: {permlink}")
     except FileNotFoundError:
         print(f"Scan file {scan_file} not found.")
 
@@ -82,7 +83,7 @@ def save_filtered_results(filtered_results, output_csv):
 
 if __name__ == "__main__":
     # User input
-    search_query = "okx"
+    search_query = "tradebot pushed:>2025-01-01 "
     token = input("Enter your GitHub token (or press Enter to skip): ").strip()
     config_path = "./gitleaks.toml"
 
